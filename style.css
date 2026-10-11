@@ -385,4 +385,30 @@ textarea.comment::placeholder{color:var(--faint)}
   transform: scale(1.15);
 }
 
+/* ============ SORT BUTTON ============ */
+.icon-btn.sort-btn {
+  width: auto;
+  min-width: var(--tap);
+  padding: 0 11px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: -.02em;
+  transition: border-color .16s, color .16s, background .16s, transform .08s;
+}
+.icon-btn.sort-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Disabled menu item (Move up/down at boundaries) */
+.pmi:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+.pmi:disabled:hover {
+  background: transparent;
+  color: var(--text);
+  border: none;
+}
 
