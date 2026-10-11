@@ -85,12 +85,13 @@ const LS_FB = 'sharedtodo.firebase';
 let deviceId = localStorage.getItem(LS_DEV);
 if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 7); localStorage.setItem(LS_DEV, deviceId); }
 
-let ui = { expanded: [], openComments: [], sortMode: 'manual' };
+let ui = { expanded: [], openComments: [], sortMode: 'manual', editing: [] };
 try { Object.assign(ui, JSON.parse(localStorage.getItem(LS_UI) || '{}')); } catch(e){}
 ui.expanded = new Set(ui.expanded || []);
 ui.openComments = new Set(ui.openComments || []);
+ui.editing = new Set(ui.editing || []);
 if (!['manual','asc','desc'].includes(ui.sortMode)) ui.sortMode = 'manual';
-function saveUI(){ localStorage.setItem(LS_UI, JSON.stringify({ expanded: [...ui.expanded], openComments: [...ui.openComments], sortMode: ui.sortMode })); }
+function saveUI(){ localStorage.setItem(LS_UI, JSON.stringify({ expanded: [...ui.expanded], openComments: [...ui.openComments], sortMode: ui.sortMode, editing: [...ui.editing] })); }
 
 let ops = [];
 try { ops = JSON.parse(localStorage.getItem(LS_OPS) || '[]'); } catch(e){ ops = []; }
@@ -217,6 +218,7 @@ function attachSaveTick(wrap, input){
   let blurTimer;
 
   input.addEventListener('focus', () => {
+    if (input.readOnly) return;
     clearTimeout(blurTimer);
     wrap.classList.add('focused');
   });
@@ -395,10 +397,64 @@ function render(){
   autosizeAll();
 }
 
+function makeTitleField(node, placeholder){
+  const wrap = el('div', 'field-wrap');
+  const isEmpty = !node.title.trim();
+  const isEditing = ui.editing.has(node.id);
+  const isLocked = !isEmpty && !isEditing;
+
+  const ta = el('textarea', 'title');
+  ta.rows = 1;
+  ta.value = node.title;
+  ta.placeholder = placeholder;
+  ta.dataset.focus = node.id;
+  ta.setAttribute('wrap', 'soft');
+
+  if (isLocked){
+    ta.readOnly = true;
+    ta.tabIndex = -1;
+    ta.classList.add('locked');
+  }
+
+  ta.oninput = () => { autosize(ta); updateField(node.id, 'title', ta.value); };
+  ta.onkeydown = (ev) => { if (ev.key === 'Enter'){ ev.preventDefault(); ta.blur(); } };
+
+  ta.addEventListener('blur', () => {
+    if (ta.readOnly) return;
+    setTimeout(() => {
+      if (document.activeElement === ta) return;
+      if (ta.value.trim() !== ''){
+        ui.editing.delete(node.id);
+        saveUI();
+        ta.readOnly = true;
+        ta.tabIndex = -1;
+        ta.classList.add('locked');
+      } else {
+        ui.editing.delete(node.id);
+        saveUI();
+      }
+    }, 400);
+  });
+
+  wrap.appendChild(ta);
+  attachSaveTick(wrap, ta);
+  return wrap;
+}
+
+
+
 function renameItem(id){
   return { icon: I.pencil, label: 'Rename', onClick: () => {
-    const t = app.querySelector(`[data-focus="${id}"]`);
-    if (t){ t.focus(); try { t.select(); } catch(e){} t.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    const ta = app.querySelector(`[data-focus="${id}"]`);
+    if (!ta) return;
+    ta.readOnly = false;
+    ta.tabIndex = 0;
+    ta.classList.remove('locked');
+    ui.editing.add(id);
+    saveUI();
+    ta.focus();
+    try { ta.select(); } catch(e){}
+    ta.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }};
 }
 
@@ -430,14 +486,7 @@ function renderSection(s, tree, index){
     saveUI(); render();
   };
 
-  const titleWrap = el('div', 'field-wrap');
-  const title = el('textarea', 'title');
-  title.rows = 1; title.value = s.title; title.placeholder = 'Section name…'; title.dataset.focus = s.id;
-  title.setAttribute('wrap', 'soft');
-  title.oninput = () => { autosize(title); updateField(s.id, 'title', title.value); };
-  title.onkeydown = (ev) => { if (ev.key === 'Enter'){ ev.preventDefault(); title.blur(); } };
-  titleWrap.appendChild(title);
-  attachSaveTick(titleWrap, title);
+  const titleWrap = makeTitleField(s, 'Section name…');
 
   const count = el('span', 'sec-count' + (allDone ? ' done' : ''), leaves.length ? `${doneCount}/${leaves.length}` : '0');
 
@@ -554,14 +603,7 @@ function renderSub(sub, tree, parentColor){
     } else { push({ type: 'done', id: sub.id, value: !sub.done }); }
   };
 
-  const titleWrap = el('div', 'field-wrap');
-  const title = el('textarea', 'title');
-  title.rows = 1; title.value = sub.title; title.placeholder = 'Subsection name…'; title.dataset.focus = sub.id;
-  title.setAttribute('wrap', 'soft');
-  title.oninput = () => { autosize(title); updateField(sub.id, 'title', title.value); };
-  title.onkeydown = (ev) => { if (ev.key === 'Enter'){ ev.preventDefault(); title.blur(); } };
-  titleWrap.appendChild(title);
-  attachSaveTick(titleWrap, title);
+  const titleWrap = makeTitleField(sub, 'Subsection name…');
 
   const commentBtn = el('button', 'comment-btn' + (sub.comment ? ' has-comment' : ''));
   commentBtn.type = 'button';
