@@ -412,3 +412,38 @@ textarea.comment::placeholder{color:var(--faint)}
   border: none;
 }
 
+
+/* ============ WRAPPING TITLES ============ */
+textarea.title{
+  flex:1;min-width:0;
+  border:none;background:transparent;color:var(--text);
+  font-size:16.5px;font-weight:650;letter-spacing:-.01em;
+  line-height:1.35;
+  padding:7px 6px;border-radius:8px;
+  resize:none;overflow:hidden;
+  font-family:inherit;
+  height:auto;
+  min-height:34px;
+  transition:background .15s;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  display:block;
+}
+textarea.title:hover{background:var(--bg)}
+textarea.title:focus{outline:none;background:var(--bg);box-shadow:0 0 0 2px var(--accent-ring)}
+textarea.title::placeholder{color:var(--faint);font-weight:500}
+
+.field-wrap > textarea.title { padding-right: 46px; }
+
+/* Keep the save tick at the top of multi-line titles */
+.field-wrap:has(> textarea.title) > .save-tick {
+  top: 6px;
+  transform: none;
+}
+.field-wrap:has(> textarea.title) > .save-tick:active {
+  transform: scale(.88);
+}
+.field-wrap:has(> textarea.title) > .save-tick.flash {
+  background: var(--done);
+  transform: scale(1.15);
+}
