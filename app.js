@@ -193,6 +193,46 @@ function refreshStatus(){
 const app = document.getElementById('app');
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
+/* ================= save tick ================= */
+function attachSaveTick(wrap, input){
+  const tick = el('button', 'save-tick', I.check);
+  tick.type = 'button';
+  tick.tabIndex = -1;
+  tick.setAttribute('aria-label', 'Done editing');
+
+  let blurTimer;
+
+  input.addEventListener('focus', () => {
+    clearTimeout(blurTimer);
+    wrap.classList.add('focused');
+  });
+
+  input.addEventListener('blur', () => {
+    clearTimeout(blurTimer);
+    // 600ms grace so a tap on the tick can still land
+    blurTimer = setTimeout(() => {
+      wrap.classList.remove('focused');
+      tick.classList.remove('flash');
+    }, 600);
+  });
+
+  tick.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    clearTimeout(blurTimer);
+    haptic(12);
+    tick.classList.add('flash');
+    input.blur();
+    refreshStatus();
+    blurTimer = setTimeout(() => {
+      wrap.classList.remove('focused');
+      tick.classList.remove('flash');
+    }, 500);
+  });
+
+  wrap.appendChild(tick);
+}
+
 /* ================= derive ================= */
 function derive(){
   const nodes = new Map();
@@ -261,7 +301,6 @@ function render(){
   }
 }
 
-/* Build a rename menu item that focuses the title input */
 function renameItem(id){
   return { icon: I.pencil, label: 'Rename', onClick: () => {
     const t = app.querySelector(`[data-focus="${id}"]`);
@@ -293,14 +332,16 @@ function renderSection(s, tree, index){
   chev.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
   chev.onclick = () => { ui.collapsed.has(s.id) ? ui.collapsed.delete(s.id) : ui.collapsed.add(s.id); saveUI(); render(); };
 
+  // ---- title wrapped with save tick ----
+  const titleWrap = el('div', 'field-wrap');
   const title = el('input', 'title');
   title.type = 'text'; title.value = s.title; title.placeholder = 'Section name…'; title.dataset.focus = s.id;
   title.oninput = () => updateField(s.id, 'title', title.value);
-  title.onblur = () => refreshStatus();
+  titleWrap.appendChild(title);
+  attachSaveTick(titleWrap, title);
 
   const count = el('span', 'sec-count' + (allDone ? ' done' : ''), leaves.length ? `${doneCount}/${leaves.length}` : '0');
 
-  /* Comment button — shown when leaves are 0, otherwise next to count */
   const commentBtn = el('button', 'comment-btn' + (s.comment ? ' has-comment' : ''));
   commentBtn.type = 'button';
   commentBtn.title = s.comment ? 'View comment' : 'Add comment';
@@ -346,7 +387,7 @@ function renderSection(s, tree, index){
     ]);
   };
 
-  head.append(chev, title, count, commentBtn, ring, dots);
+  head.append(chev, titleWrap, count, commentBtn, ring, dots);
   box.appendChild(head);
 
   if (leaves.length){
@@ -355,13 +396,17 @@ function renderSection(s, tree, index){
     box.appendChild(prog);
   }
 
+  // ---- comment wrapped with save tick ----
   if (ui.openComments.has(s.id)){
     const wrap = el('div', 'comment-wrap');
+    const cmtWrap = el('div', 'field-wrap textarea-wrap');
     const cmt = el('textarea', 'comment');
     cmt.value = s.comment; cmt.placeholder = 'Comment for this section…'; cmt.rows = 2; cmt.dataset.comment = s.id;
     cmt.oninput = () => updateField(s.id, 'comment', cmt.value);
-    cmt.onblur = () => refreshStatus();
-    wrap.appendChild(cmt); box.appendChild(wrap);
+    cmtWrap.appendChild(cmt);
+    attachSaveTick(cmtWrap, cmt);
+    wrap.appendChild(cmtWrap);
+    box.appendChild(wrap);
   }
 
   const kids = el('div', 'children');
@@ -411,12 +456,14 @@ function renderSub(sub, tree, parentColor){
     } else { push({ type: 'done', id: sub.id, value: !sub.done }); }
   };
 
+  // ---- title wrapped with save tick ----
+  const titleWrap = el('div', 'field-wrap');
   const title = el('input', 'title');
   title.type = 'text'; title.value = sub.title; title.placeholder = 'Subsection name…'; title.dataset.focus = sub.id;
   title.oninput = () => updateField(sub.id, 'title', title.value);
-  title.onblur = () => refreshStatus();
+  titleWrap.appendChild(title);
+  attachSaveTick(titleWrap, title);
 
-  /* Comment button replaces the "0" */
   const commentBtn = el('button', 'comment-btn' + (sub.comment ? ' has-comment' : ''));
   commentBtn.type = 'button';
   commentBtn.title = sub.comment ? 'View comment' : 'Add comment';
@@ -439,7 +486,7 @@ function renderSub(sub, tree, parentColor){
     ]);
   };
 
-  head.append(tick, title, commentBtn, dots);
+  head.append(tick, titleWrap, commentBtn, dots);
   box.appendChild(head);
 
   if (leaves.length){
@@ -448,13 +495,17 @@ function renderSub(sub, tree, parentColor){
     box.appendChild(prog);
   }
 
+  // ---- comment wrapped with save tick ----
   if (ui.openComments.has(sub.id)){
     const wrap = el('div', 'comment-wrap');
+    const cmtWrap = el('div', 'field-wrap textarea-wrap');
     const cmt = el('textarea', 'comment');
     cmt.value = sub.comment; cmt.placeholder = 'Comment for this subsection…'; cmt.rows = 2; cmt.dataset.comment = sub.id;
     cmt.oninput = () => updateField(sub.id, 'comment', cmt.value);
-    cmt.onblur = () => refreshStatus();
-    wrap.appendChild(cmt); box.appendChild(wrap);
+    cmtWrap.appendChild(cmt);
+    attachSaveTick(cmtWrap, cmt);
+    wrap.appendChild(cmtWrap);
+    box.appendChild(wrap);
   }
 
   const kids = el('div', 'children');
