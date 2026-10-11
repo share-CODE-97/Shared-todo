@@ -643,7 +643,14 @@ function showPop(anchor, items){
     b.type = 'button'; b.className = 'pmi' + (it.danger ? ' danger' : '');
     if (it.disabled) b.disabled = true;
     b.innerHTML = `<span class="pmi-ico">${it.icon || ''}</span><span>${it.label}</span>`;
-    b.onclick = (e) => { e.stopPropagation(); closePop(); if (!it.disabled) it.onClick(); };
+    b.onclick = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (it.disabled) return;
+      const fn = it.onClick;
+      fn();          // run the action first
+      closePop();    // then hide the menu
+    };
     m.appendChild(b);
   }
   document.body.appendChild(m);
