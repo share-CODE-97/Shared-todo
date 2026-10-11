@@ -15,6 +15,8 @@ const I = {
   sub:    svg('<polyline points="9 6 15 12 9 18"/>', 16),
   comment:svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>', 15),
   pencil: svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>', 15),
+  up:     svg('<path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/>', 16),
+  down:   svg('<path d="M12 5v14"/><polyline points="19 12 12 19 5 12"/>', 16),
 };
 
 /* ================= colors ================= */
@@ -72,11 +74,12 @@ const LS_FB = 'sharedtodo.firebase';
 let deviceId = localStorage.getItem(LS_DEV);
 if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 7); localStorage.setItem(LS_DEV, deviceId); }
 
-let ui = { collapsed: [], openComments: [] };
+let ui = { collapsed: [], openComments: [], sortMode: 'manual' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem(LS_UI) || '{}')); } catch(e){}
 ui.collapsed = new Set(ui.collapsed || []);
 ui.openComments = new Set(ui.openComments || []);
-function saveUI(){ localStorage.setItem(LS_UI, JSON.stringify({ collapsed: [...ui.collapsed], openComments: [...ui.openComments] })); }
+if (!['manual','asc','desc'].includes(ui.sortMode)) ui.sortMode = 'manual';
+function saveUI(){ localStorage.setItem(LS_UI, JSON.stringify({ collapsed: [...ui.collapsed], openComments: [...ui.openComments], sortMode: ui.sortMode })); }
 
 let ops = [];
 try { ops = JSON.parse(localStorage.getItem(LS_OPS) || '[]'); } catch(e){ ops = []; }
@@ -209,7 +212,6 @@ function attachSaveTick(wrap, input){
 
   input.addEventListener('blur', () => {
     clearTimeout(blurTimer);
-    // 600ms grace so a tap on the tick can still land
     blurTimer = setTimeout(() => {
       wrap.classList.remove('focused');
       tick.classList.remove('flash');
@@ -245,12 +247,14 @@ function derive(){
       if (op.type === 'title') n.title = op.value;
       else if (op.type === 'comment') n.comment = op.value;
       else if (op.type === 'done') n.done = !!op.value;
+      else if (op.type === 'order') n.order = op.value;
       else if (op.type === 'delete') n.deleted = true;
       else if (op.type === 'undelete') n.deleted = false;
     }
   }
   return nodes;
 }
+
 function buildTree(nodes){
   const byParent = new Map();
   for (const n of nodes.values()){
@@ -259,9 +263,24 @@ function buildTree(nodes){
     if (!byParent.has(p)) byParent.set(p, []);
     byParent.get(p).push(n);
   }
-  for (const arr of byParent.values()) arr.sort((a,b) => a.order - b.order);
+
+  const mode = ui.sortMode;
+  const cmp = (a, b) => {
+    if (mode === 'asc'){
+      return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' })
+        || (a.order - b.order);
+    }
+    if (mode === 'desc'){
+      return (b.title || '').localeCompare(a.title || '', undefined, { sensitivity: 'base' })
+        || (a.order - b.order);
+    }
+    return a.order - b.order;
+  };
+
+  for (const arr of byParent.values()) arr.sort(cmp);
   return byParent;
 }
+
 function collectLeaves(id, tree, out = []){
   const children = tree.get(id) || [];
   for (const c of children){
@@ -270,6 +289,61 @@ function collectLeaves(id, tree, out = []){
     else collectLeaves(c.id, tree, out);
   }
   return out;
+}
+
+/* ================= reorder ================= */
+function moveUp(id, tree){
+  if (ui.sortMode !== 'manual') return;
+  const nodes = derive();
+  const n = nodes.get(id);
+  if (!n) return;
+  const parent = n.parentId || 'root';
+  const siblings = tree.get(parent) || [];
+  const idx = siblings.findIndex(s => s.id === id);
+  if (idx <= 0) return;
+  const prev = siblings[idx - 1];
+  let newOrder;
+  if (idx === 1) newOrder = prev.order - 1000;
+  else newOrder = (siblings[idx - 2].order + prev.order) / 2;
+  addOp({ type: 'order', id: n.id, value: newOrder });
+  haptic(6);
+  render();
+}
+
+function moveDown(id, tree){
+  if (ui.sortMode !== 'manual') return;
+  const nodes = derive();
+  const n = nodes.get(id);
+  if (!n) return;
+  const parent = n.parentId || 'root';
+  const siblings = tree.get(parent) || [];
+  const idx = siblings.findIndex(s => s.id === id);
+  if (idx < 0 || idx >= siblings.length - 1) return;
+  const next = siblings[idx + 1];
+  let newOrder;
+  if (idx === siblings.length - 2) newOrder = next.order + 1000;
+  else newOrder = (next.order + siblings[idx + 2].order) / 2;
+  addOp({ type: 'order', id: n.id, value: newOrder });
+  haptic(6);
+  render();
+}
+
+/* Move menu items — only shown in Manual mode */
+function moveMenuItems(id, tree){
+  if (ui.sortMode !== 'manual') return [];
+  const nodes = derive();
+  const n = nodes.get(id);
+  if (!n) return [];
+  const parent = n.parentId || 'root';
+  const siblings = tree.get(parent) || [];
+  const idx = siblings.findIndex(s => s.id === id);
+  const canUp = idx > 0;
+  const canDown = idx < siblings.length - 1;
+  return [
+    { icon: I.up,   label: 'Move up',   disabled: !canUp,   onClick: () => canUp   && moveUp(id, tree) },
+    { icon: I.down, label: 'Move down', disabled: !canDown, onClick: () => canDown && moveDown(id, tree) },
+    { sep: true },
+  ];
 }
 
 /* ================= render ================= */
@@ -332,7 +406,6 @@ function renderSection(s, tree, index){
   chev.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
   chev.onclick = () => { ui.collapsed.has(s.id) ? ui.collapsed.delete(s.id) : ui.collapsed.add(s.id); saveUI(); render(); };
 
-  // ---- title wrapped with save tick ----
   const titleWrap = el('div', 'field-wrap');
   const title = el('input', 'title');
   title.type = 'text'; title.value = s.title; title.placeholder = 'Section name…'; title.dataset.focus = s.id;
@@ -373,6 +446,7 @@ function renderSection(s, tree, index){
   dots.onclick = (e) => {
     e.stopPropagation();
     showPop(dots, [
+      ...moveMenuItems(s.id, tree),
       { icon: I.sub, label: 'Add subsection', onClick: () => {
           const nid = uid();
           const existing = (tree.get(s.id) || []).filter(c => c.kind === 'sub').length;
@@ -396,7 +470,6 @@ function renderSection(s, tree, index){
     box.appendChild(prog);
   }
 
-  // ---- comment wrapped with save tick ----
   if (ui.openComments.has(s.id)){
     const wrap = el('div', 'comment-wrap');
     const cmtWrap = el('div', 'field-wrap textarea-wrap');
@@ -456,7 +529,6 @@ function renderSub(sub, tree, parentColor){
     } else { push({ type: 'done', id: sub.id, value: !sub.done }); }
   };
 
-  // ---- title wrapped with save tick ----
   const titleWrap = el('div', 'field-wrap');
   const title = el('input', 'title');
   title.type = 'text'; title.value = sub.title; title.placeholder = 'Subsection name…'; title.dataset.focus = sub.id;
@@ -480,6 +552,7 @@ function renderSub(sub, tree, parentColor){
   dots.onclick = (e) => {
     e.stopPropagation();
     showPop(dots, [
+      ...moveMenuItems(sub.id, tree),
       renameItem(sub.id),
       { sep: true },
       { icon: I.trash, label: 'Delete subsection', danger: true, onClick: () => deleteNode(sub.id, tree, 'Subsection') },
@@ -495,7 +568,6 @@ function renderSub(sub, tree, parentColor){
     box.appendChild(prog);
   }
 
-  // ---- comment wrapped with save tick ----
   if (ui.openComments.has(sub.id)){
     const wrap = el('div', 'comment-wrap');
     const cmtWrap = el('div', 'field-wrap textarea-wrap');
@@ -569,8 +641,9 @@ function showPop(anchor, items){
     if (it.sep){ m.appendChild(el('div', 'pmi-sep')); continue; }
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'pmi' + (it.danger ? ' danger' : '');
+    if (it.disabled) b.disabled = true;
     b.innerHTML = `<span class="pmi-ico">${it.icon || ''}</span><span>${it.label}</span>`;
-    b.onclick = (e) => { e.stopPropagation(); closePop(); it.onClick(); };
+    b.onclick = (e) => { e.stopPropagation(); closePop(); if (!it.disabled) it.onClick(); };
     m.appendChild(b);
   }
   document.body.appendChild(m);
@@ -603,6 +676,28 @@ function toast(msg, actionLabel, actionFn, ms = 2600){
   timer = setTimeout(close, ms);
 }
 function haptic(ms = 8){ if (navigator.vibrate){ try { navigator.vibrate(ms); } catch(e){} } }
+
+/* ================= sort button ================= */
+function syncSortLabel(){
+  const l = document.getElementById('sortLabel');
+  if (!l) return;
+  if (ui.sortMode === 'asc')  l.textContent = 'A–Z';
+  else if (ui.sortMode === 'desc') l.textContent = 'Z–A';
+  else l.textContent = '↕';
+  const b = document.getElementById('sortBtn');
+  if (b){
+    b.title = 'Sort: ' + (ui.sortMode === 'asc' ? 'A to Z' : ui.sortMode === 'desc' ? 'Z to A' : 'Manual');
+  }
+}
+document.getElementById('sortBtn').onclick = () => {
+  if (ui.sortMode === 'manual') ui.sortMode = 'asc';
+  else if (ui.sortMode === 'asc') ui.sortMode = 'desc';
+  else ui.sortMode = 'manual';
+  saveUI();
+  syncSortLabel();
+  haptic(6);
+  render();
+};
 
 /* ================= settings ================= */
 const settingsSheet = document.getElementById('settingsSheet');
@@ -656,6 +751,7 @@ document.getElementById('addSectionTop').onclick = addSection;
 document.getElementById('fab').onclick = addSection;
 
 /* ================= start ================= */
+syncSortLabel();
 setCloudUI('warn', 'Connecting…', dbUrl());
 connectFirebase();
 render();
