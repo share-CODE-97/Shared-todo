@@ -304,3 +304,85 @@ textarea.comment::placeholder{color:var(--faint)}
   .ring-btn{width:36px;height:36px;min-height:36px}
   .comment-btn{width:30px;height:30px}
 }
+
+
+/* ============ SAVE TICK ============ */
+.field-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.field-wrap.textarea-wrap {
+  align-items: flex-start;
+}
+.field-wrap > input.title,
+.field-wrap > input.task-title,
+.field-wrap > textarea.comment {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.field-wrap > input.title,
+.field-wrap > input.task-title {
+  padding-right: 46px;
+}
+.field-wrap > textarea.comment {
+  padding-right: 48px;
+}
+
+.save-tick {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  min-height: 34px;
+  border-radius: 9px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  display: none;
+  place-items: center;
+  cursor: pointer;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  transition: background .2s ease, transform .15s ease;
+}
+.save-tick svg { display: block; }
+
+.field-wrap.focused > .save-tick {
+  display: grid;
+  animation: tickIn .18s cubic-bezier(.2,.9,.3,1.2);
+}
+@keyframes tickIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.save-tick:active {
+  transform: translateY(-50%) scale(.88);
+}
+.save-tick.flash {
+  background: var(--done);
+  transform: translateY(-50%) scale(1.15);
+}
+
+.field-wrap.textarea-wrap > .save-tick {
+  top: 6px;
+  transform: none;
+}
+.field-wrap.textarea-wrap > .save-tick:active {
+  transform: scale(.88);
+}
+.field-wrap.textarea-wrap > .save-tick.flash {
+  background: var(--done);
+  transform: scale(1.15);
+}
+
+
