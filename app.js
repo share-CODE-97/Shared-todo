@@ -281,6 +281,14 @@ function buildTree(nodes){
   return byParent;
 }
 
+function autosize(ta){
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+function autosizeAll(){
+  app.querySelectorAll('textarea.title').forEach(autosize);
+}
+
 function collectLeaves(id, tree, out = []){
   const children = tree.get(id) || [];
   for (const c of children){
@@ -373,6 +381,7 @@ function render(){
     if (t){ t.classList.add('pop'); setTimeout(() => t.classList.remove('pop'), 350); }
     pendingPop = null;
   }
+  autosizeAll();
 }
 
 function renameItem(id){
@@ -407,9 +416,11 @@ function renderSection(s, tree, index){
   chev.onclick = () => { ui.collapsed.has(s.id) ? ui.collapsed.delete(s.id) : ui.collapsed.add(s.id); saveUI(); render(); };
 
   const titleWrap = el('div', 'field-wrap');
-  const title = el('input', 'title');
-  title.type = 'text'; title.value = s.title; title.placeholder = 'Section name…'; title.dataset.focus = s.id;
-  title.oninput = () => updateField(s.id, 'title', title.value);
+  const title = el('textarea', 'title');
+  title.rows = 1; title.value = s.title; title.placeholder = 'Section name…'; title.dataset.focus = s.id;
+  title.setAttribute('wrap', 'soft');
+  title.oninput = () => { autosize(title); updateField(s.id, 'title', title.value); };
+  title.onkeydown = (ev) => { if (ev.key === 'Enter'){ ev.preventDefault(); title.blur(); } };
   titleWrap.appendChild(title);
   attachSaveTick(titleWrap, title);
 
@@ -530,9 +541,11 @@ function renderSub(sub, tree, parentColor){
   };
 
   const titleWrap = el('div', 'field-wrap');
-  const title = el('input', 'title');
-  title.type = 'text'; title.value = sub.title; title.placeholder = 'Subsection name…'; title.dataset.focus = sub.id;
-  title.oninput = () => updateField(sub.id, 'title', title.value);
+  const title = el('textarea', 'title');
+  title.rows = 1; title.value = sub.title; title.placeholder = 'Subsection name…'; title.dataset.focus = sub.id;
+  title.setAttribute('wrap', 'soft');
+  title.oninput = () => { autosize(title); updateField(sub.id, 'title', title.value); };
+  title.onkeydown = (ev) => { if (ev.key === 'Enter'){ ev.preventDefault(); title.blur(); } };
   titleWrap.appendChild(title);
   attachSaveTick(titleWrap, title);
 
