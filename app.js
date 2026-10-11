@@ -423,7 +423,7 @@ function renderSection(s, tree, index){
 
   const chev = el('button', 'chev', I.chev);
   chev.type = 'button';
-  chev.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
+  chev.setAttribute('aria-label', expanded ? 'Collapse' : 'Expand');
   chev.onclick = () => {
     if (ui.expanded.has(s.id)) ui.expanded.delete(s.id);
     else ui.expanded.add(s.id);
