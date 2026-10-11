@@ -473,3 +473,13 @@ textarea.title::placeholder{color:var(--faint);font-weight:500}
   padding-bottom: 11px;
 }
 
+/* Locked title — looks the same but can't be edited accidentally */
+textarea.title.locked {
+  cursor: default;
+}
+textarea.title.locked:hover,
+textarea.title.locked:focus {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
