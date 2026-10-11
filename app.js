@@ -43,6 +43,17 @@ function ringSVG(pct, allDone, empty) {
   </svg>`;
 }
 
+/* ================= header height ================= */
+function updateHeaderHeight(){
+  const h = document.querySelector('header');
+  if (h) document.documentElement.style.setProperty('--header-h', h.offsetHeight + 'px');
+}
+window.addEventListener('resize', updateHeaderHeight);
+if (window.ResizeObserver) {
+  const h = document.querySelector('header');
+  if (h) new ResizeObserver(updateHeaderHeight).observe(h);
+}
+
 /* ================= theme ================= */
 const LS_THEME = 'sharedtodo.theme';
 const META = document.querySelector('meta[name="theme-color"]');
@@ -74,12 +85,12 @@ const LS_FB = 'sharedtodo.firebase';
 let deviceId = localStorage.getItem(LS_DEV);
 if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 7); localStorage.setItem(LS_DEV, deviceId); }
 
-let ui = { collapsed: [], openComments: [], sortMode: 'manual' };
+let ui = { expanded: [], openComments: [], sortMode: 'manual' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem(LS_UI) || '{}')); } catch(e){}
-ui.collapsed = new Set(ui.collapsed || []);
+ui.expanded = new Set(ui.expanded || []);
 ui.openComments = new Set(ui.openComments || []);
 if (!['manual','asc','desc'].includes(ui.sortMode)) ui.sortMode = 'manual';
-function saveUI(){ localStorage.setItem(LS_UI, JSON.stringify({ collapsed: [...ui.collapsed], openComments: [...ui.openComments], sortMode: ui.sortMode })); }
+function saveUI(){ localStorage.setItem(LS_UI, JSON.stringify({ expanded: [...ui.expanded], openComments: [...ui.openComments], sortMode: ui.sortMode })); }
 
 let ops = [];
 try { ops = JSON.parse(localStorage.getItem(LS_OPS) || '[]'); } catch(e){ ops = []; }
@@ -405,15 +416,19 @@ function renderSection(s, tree, index){
   box.style.setProperty('--sec-tint', hexToRgba(color, 0.14));
   box.style.setProperty('--sec-soft', hexToRgba(color, 0.45));
 
-  const collapsed = ui.collapsed.has(s.id);
-  if (collapsed) box.classList.add('collapsed');
+   const expanded = ui.expanded.has(s.id);
+  if (!expanded) box.classList.add('collapsed');
 
   const head = el('div', 'shead');
 
   const chev = el('button', 'chev', I.chev);
   chev.type = 'button';
   chev.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
-  chev.onclick = () => { ui.collapsed.has(s.id) ? ui.collapsed.delete(s.id) : ui.collapsed.add(s.id); saveUI(); render(); };
+  chev.onclick = () => {
+    if (ui.expanded.has(s.id)) ui.expanded.delete(s.id);
+    else ui.expanded.add(s.id);
+    saveUI(); render();
+  };
 
   const titleWrap = el('div', 'field-wrap');
   const title = el('textarea', 'title');
@@ -463,8 +478,8 @@ function renderSection(s, tree, index){
           const existing = (tree.get(s.id) || []).filter(c => c.kind === 'sub').length;
           const sIdx = COLORS.indexOf(color);
           const subColor = COLORS[(sIdx + 1 + existing) % COLORS.length];
-          ui.collapsed.delete(s.id); saveUI();
-          push({ type: 'add', id: nid, parentId: s.id, kind: 'sub', title: '', color: subColor }, nid);
+          ui.expanded.add(s.id); saveUI();          
+        push({ type: 'add', id: nid, parentId: s.id, kind: 'sub', title: '', color: subColor }, nid);
         }},
       renameItem(s.id),
       { sep: true },
@@ -522,8 +537,7 @@ function renderSub(sub, tree, parentColor){
   box.style.setProperty('--sec', color);
   box.style.setProperty('--sec-soft', hexToRgba(color, 0.55));
   box.style.setProperty('--sec-tint', hexToRgba(color, 0.14));
-  const collapsed = ui.collapsed.has(sub.id);
-  if (collapsed) box.classList.add('collapsed');
+  /* subsections are always expanded */
 
   const head = el('div', 'shead');
   const tick = el('button', 'tick' + (visuallyDone ? ' done' : ''), visuallyDone ? I.check : '');
@@ -766,7 +780,12 @@ document.getElementById('resetBtn').onclick = () => {
 
 /* ================= add section ================= */
 function nextColor(){ const count = (buildTree(derive()).get('root') || []).length; return COLORS[count % COLORS.length]; }
-function addSection(){ const nid = uid(); push({ type: 'add', id: nid, parentId: null, kind: 'section', title: '', color: nextColor() }, nid); }
+function addSection(){
+  const nid = uid();
+  ui.expanded.add(nid);
+  saveUI();
+  push({ type: 'add', id: nid, parentId: null, kind: 'section', title: '', color: nextColor() }, nid);
+}
 document.getElementById('addSectionTop').onclick = addSection;
 document.getElementById('fab').onclick = addSection;
 
@@ -775,3 +794,4 @@ syncSortLabel();
 setCloudUI('warn', 'Connecting…', dbUrl());
 connectFirebase();
 render();
+updateHeaderHeight();
