@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, forceLongPolling } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, update, onValue, forceLongPolling } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 forceLongPolling();
 
@@ -199,7 +199,27 @@ async function pushOpToFirebase(op){
 async function pushAllUnsynced(){
   if (!fbDb) return;
   const unsynced = ops.filter(o => !pushedIds.has(o.opId));
-  for (const op of unsynced){ await pushOpToFirebase(op); }
+  if (!unsynced.length) return;
+
+  // Batch in chunks of 100 — one HTTP request per chunk instead of per op.
+  const CHUNK = 100;
+  for (let i = 0; i < unsynced.length; i += CHUNK){
+    const chunk = unsynced.slice(i, i + CHUNK);
+    const updates = {};
+    for (const op of chunk){
+      updates['todo/ops/' + op.opId] = op;
+    }
+    try {
+      await update(ref(fbDb), updates);
+      chunk.forEach(op => pushedIds.add(op.opId));
+      localStorage.setItem(LS_PUSHED, JSON.stringify([...pushedIds]));
+      refreshStatus();
+    } catch(e){
+      console.error(e);
+      setStatus('Push failed', 'warn');
+      return;
+    }
+  }
 }
 
 /* ================= status ================= */
