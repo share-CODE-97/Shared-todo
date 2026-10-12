@@ -118,12 +118,34 @@ function addOp(op){
   ops.push(op);
   localStorage.setItem(LS_OPS, JSON.stringify(ops));
   refreshStatus();
-  pushOpToFirebase(op);
+  schedulePush();
 }
 
 let pendingFocus = null, pendingPop = null;
 function push(op, focusId){ addOp(op); if (focusId) pendingFocus = focusId; render(); }
 function updateField(id, field, value){ addOp({ type: field, id, value }); }
+
+/* Debounced batch push — collect edits, then send them together */
+let pushTimer = null;
+function schedulePush(){
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    clearTimeout(pushTimer);
+    pushAllUnsynced();
+  }, 300);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden'){
+    clearTimeout(pushTimer);
+    pushAllUnsynced();
+  }
+});
+window.addEventListener('pagehide', () => {
+  clearTimeout(pushTimer);
+  pushAllUnsynced();
+});
+
 
 function mergeOps(incoming){
   const have = new Set(ops.map(o => o.opId));
