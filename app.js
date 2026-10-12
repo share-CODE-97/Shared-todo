@@ -1,5 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, onValue, forceLongPolling } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+forceLongPolling();
 
 /* ================= config ================= */
 const DEFAULT_DB_URL = 'https://shared-todo-69144-default-rtdb.asia-southeast1.firebasedatabase.app';
