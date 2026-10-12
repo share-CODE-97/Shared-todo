@@ -837,3 +837,94 @@ setCloudUI('warn', 'Connecting…', dbUrl());
 connectFirebase();
 render();
 updateHeaderHeight();
+
+
+
+/* ================= console API ================= */
+function parseIndented(text){
+  const lines = text.split('\n').filter(l => l.trim() !== '');
+  if (!lines.length) return {};
+  const base = Math.min(...lines.map(l => l.match(/^(\s*)/)[1].length));
+  const out = {};
+  let current = null;
+  for (const line of lines){
+    const indent = line.match(/^(\s*)/)[1].length;
+    const title = line.trim();
+    if (indent === base){
+      current = title;
+      out[current] = [];
+    } else if (current){
+      out[current].push(title);
+    }
+  }
+  return out;
+}
+
+window.todo = {
+  /* Add one section. Optionally pass an array of subsections. */
+  add(title, subs = []){
+    if (!title) return console.warn('Usage: todo.add("Section", ["sub1", "sub2"])');
+    const rootCount = (buildTree(derive()).get('root') || []).length;
+    const secColor = COLORS[rootCount % COLORS.length];
+    const sIdx = COLORS.indexOf(secColor);
+    const secId = uid();
+    addOp({ type: 'add', id: secId, parentId: null, kind: 'section', title, color: secColor });
+    (Array.isArray(subs) ? subs : [subs]).forEach((subTitle, i) => {
+      const subId = uid();
+      const subColor = COLORS[(sIdx + 1 + i) % COLORS.length];
+      addOp({ type: 'add', id: subId, parentId: secId, kind: 'sub', title: subTitle, color: subColor });
+    });
+    render();
+    console.log('%c✓ Added ' + title + (subs.length ? ' (+' + subs.length + ' subs)' : ''), 'color:#10b981');
+    return secId;
+  },
+
+  /* Bulk load from an object or indented text. */
+  load(input){
+    let data;
+    if (typeof input === 'string') data = parseIndented(input);
+    else if (input && typeof input === 'object') data = input;
+    else return console.warn('Pass an object or an indented text string');
+    let count = 0;
+    Object.keys(data).forEach(sec => {
+      const subs = Array.isArray(data[sec]) ? data[sec] : [data[sec]];
+      todo.add(sec, subs);
+      count += 1 + subs.length;
+    });
+    console.log('%c✓ Loaded ' + count + ' items', 'color:#10b981;font-weight:bold');
+  },
+
+  /* Show what's currently in the list. */
+  dump(){
+    const tree = buildTree(derive());
+    const rows = [];
+    for (const s of (tree.get('root') || [])){
+      const subs = tree.get(s.id) || [];
+      if (!subs.length) rows.push({ section: s.title, subsection: '' });
+      else for (const c of subs) rows.push({ section: s.title, subsection: c.title });
+    }
+    console.table(rows);
+    return rows;
+  },
+
+  /* Delete everything (asks first). */
+  clear(){
+    if (!confirm('Delete ALL sections? Cannot be undone.')) return;
+    const nodes = derive();
+    for (const id of nodes.keys()) addOp({ type: 'delete', id });
+    render();
+    console.log('%c✓ Cleared', 'color:#ef4444');
+  },
+
+  help(){
+    console.log('%cTODO CONSOLE HELP\n' +
+      '%cAdd one section:        todo.add("Groceries", ["Milk","Bread"])\n' +
+      'Add plain section:     todo.add("Work")\n' +
+      'Bulk from text:        todo.load(`\n    Groceries\n      Milk\n      Bread\n    Clothes\n      Shirts\n  `)\n' +
+      'Bulk from object:      todo.load({ Groceries: ["Milk","Bread"] })\n' +
+      'See current list:      todo.dump()\n' +
+      'Clear everything:      todo.clear()',
+      'color:#4f46e5;font-weight:bold;font-size:13px',
+      'font-family:monospace;font-size:12px;line-height:1.7');
+  }
+};
