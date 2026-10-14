@@ -146,7 +146,6 @@ window.addEventListener('pagehide', () => {
   pushAllUnsynced();
 });
 
-
 function mergeOps(incoming){
   const have = new Set(ops.map(o => o.opId));
   let added = 0;
