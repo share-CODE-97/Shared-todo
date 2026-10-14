@@ -762,19 +762,77 @@ function renderTask(t, inheritedColor){
   return row;
 }
 
-function deleteNode(id, tree, label){
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function showConfirm(title, message){
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'confirm-wrap';
+    wrap.innerHTML = `
+      <div class="confirm-bg"></div>
+      <div class="confirm-box" role="dialog" aria-modal="true">
+        <div class="confirm-title">${escapeHtml(title)}</div>
+        ${message ? `<div class="confirm-msg">${escapeHtml(message)}</div>` : ''}
+        <div class="confirm-actions">
+          <button class="confirm-btn cancel" type="button">Cancel</button>
+          <button class="confirm-btn danger" type="button">Delete</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    let done = false;
+    const close = (result) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener('keydown', onKey);
+      wrap.classList.add('out');
+      setTimeout(() => wrap.remove(), 200);
+      resolve(result);
+    };
+
+    const onKey = (e) => { if (e.key === 'Escape') close(false); };
+    document.addEventListener('keydown', onKey);
+
+    wrap.querySelector('.confirm-bg').addEventListener('click', () => close(false));
+    wrap.querySelector('.cancel').addEventListener('click', () => close(false));
+    wrap.querySelector('.danger').addEventListener('click', () => close(true));
+
+    setTimeout(() => wrap.querySelector('.cancel').focus(), 60);
+  });
+}
+
+async function deleteNode(id, tree, label){
+  /* Count the whole subtree */
   const ids = [];
   const stack = [id];
   while (stack.length){
     const cur = stack.pop(); ids.push(cur);
     for (const c of (tree.get(cur) || [])) stack.push(c.id);
   }
+  const extra = ids.length - 1;
+
+  /* Get the item's title for the confirmation */
+  const nodes = derive();
+  const n = nodes.get(id);
+  const name = (n && n.title && n.title.trim()) ? n.title.trim() : 'this item';
+
+  const title = extra > 0
+    ? `Delete "${name}" and ${extra} more item${extra === 1 ? '' : 's'}?`
+    : `Delete "${name}"?`;
+
+  const ok = await showConfirm(title, 'You can undo this for 10 seconds.');
+  if (!ok) return;
+
   for (const i of ids) addOp({ type: 'delete', id: i });
-  render(); haptic(15);
+  render();
+  haptic(15);
   toast(`${label} deleted`, 'Undo', () => {
     for (const i of ids) addOp({ type: 'undelete', id: i });
     render(); toast('Restored');
-  }, 5000);
+  }, 20000);
 }
 
 /* ================= popover ================= */
