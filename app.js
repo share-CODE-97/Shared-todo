@@ -249,10 +249,37 @@ function setStatus(text, kind){
   document.getElementById('statusText').textContent = text;
   document.getElementById('status').className = 'status' + (kind ? ' ' + kind : '');
 }
+let stuckSince = 0;
+let stuckTimer = null;
+const STUCK_MS = 10000;
+
 function refreshStatus(){
   const pending = ops.filter(o => !pushedIds.has(o.opId)).length;
-  if (pending > 0) setStatus('Saving… ' + pending, 'warn');
-  else setStatus('✓ Synced · ' + timeStr(), 'ok');
+  const btn = document.getElementById('refreshBtn');
+
+  if (pending > 0){
+    if (!stuckSince) stuckSince = Date.now();
+    setStatus('Saving… ' + pending, 'warn');
+
+    if (!stuckTimer){
+      const elapsed = Date.now() - stuckSince;
+      if (elapsed >= STUCK_MS){
+        if (btn) btn.classList.remove('hidden');
+      } else {
+        stuckTimer = setTimeout(() => {
+          stuckTimer = null;
+          if (stuckSince && ops.filter(o => !pushedIds.has(o.opId)).length > 0){
+            if (btn) btn.classList.remove('hidden');
+          }
+        }, STUCK_MS - elapsed);
+      }
+    }
+  } else {
+    stuckSince = 0;
+    if (stuckTimer){ clearTimeout(stuckTimer); stuckTimer = null; }
+    if (btn) btn.classList.add('hidden');
+    setStatus('✓ Synced · ' + timeStr(), 'ok');
+  }
 }
 
 /* ================= DOM helpers ================= */
@@ -803,6 +830,34 @@ function toast(msg, actionLabel, actionFn, ms = 2600){
   timer = setTimeout(close, ms);
 }
 function haptic(ms = 8){ if (navigator.vibrate){ try { navigator.vibrate(ms); } catch(e){} } }
+
+
+/* ================= refresh button ================= */
+const refreshBtnEl = document.getElementById('refreshBtn');
+if (refreshBtnEl){
+  refreshBtnEl.onclick = () => {
+    haptic(10);
+    refreshBtnEl.classList.add('spinning');
+    stuckSince = 0;
+    if (stuckTimer){ clearTimeout(stuckTimer); stuckTimer = null; }
+
+    // Tear down and rebuild the Firebase connection
+    connectFirebase();
+
+    // Wait a moment for the new connection, then drain the queue
+    setTimeout(async () => {
+      await pushAllUnsynced();
+      refreshStatus();
+      refreshBtnEl.classList.remove('spinning');
+      const still = ops.filter(o => !pushedIds.has(o.opId)).length;
+      if (still > 0){
+        toast('Still stuck — tap Refresh again or reload the page', null, null, 5000);
+      } else {
+        toast('Reconnected');
+      }
+    }, 1200);
+  };
+}
 
 /* ================= sort button ================= */
 function syncSortLabel(){
