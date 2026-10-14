@@ -1,4 +1,4 @@
-const CACHE = 'sharedtodo-v9';
+const CACHE = 'sharedtodo-v10';
 const SHELL = [
   './',
   './index.html',
